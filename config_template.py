@@ -11,3 +11,4 @@ import os
 BASE_URL = os.getenv("CGC_LIVE_BASE_URL", "https://admin.zweef.app/club/cgc2")
 API_TOKEN =  os.getenv("CGC_LIVE_API_TOKEN",  "YOUR_TOKEN")
 AEROLOG_PATH = os.getenv("CGC_LIVE_AEROLOG_PATH",  "PATH")
+VERSION = "__DEV__VERSION__"

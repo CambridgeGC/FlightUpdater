@@ -17,6 +17,8 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus   import Paragraph, Spacer
 
+import config
+
 class FlightUpdaterApp:
     def __init__(self, root, api_token, aerolog_path):
         # Initialize data storage
@@ -34,7 +36,7 @@ class FlightUpdaterApp:
         self.fetcher = FlightFetcher(api_token, aerolog_path)
 
         # Window setup
-        root.title('Flight Updater V1.4 24 June 2025')
+        root.title('Flight Updater '+ config.VERSION)
         root.geometry('1900x1000')
 
         # Date selector + Fetch button frame
