@@ -2,47 +2,51 @@ param (
     [string]$Tag = "__DEV__VERSION__"
 )
 
+$ErrorActionPreference = "Stop"
+
+function Run-Exit_On_Error {
+    param([string]$cmd)
+    Invoke-Expression $cmd
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Command failed: $cmd with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
+    }
+}
+
+
 # Check if Python 3.13 is installed
 $pythonCheck = py -3.13 -V 2>&1
 if ($pythonCheck -match "not be located" -or $pythonCheck -contains "No suitable") {
     Write-Host "Python 3.13 not found. Install / activate Python 3.13"
     exit 1
+}else{
+    "Python 3.13 found"
 }
 
 # Check if Poetry is installed
 if (-not (Get-Command poetry -ErrorAction SilentlyContinue)) {
     Write-Host "Poetry not found. Installing Poetry..."
     pip install poetry
+}else{
+    "Poetry found"
 }
 
-# Set up environment for poetry
-poetry env use (py -3.13 -c "import sys; print(sys.executable)")
-poetry add --group dev pyinstaller
+"Set up environment for poetry..."
+Run-Exit_On_Error "poetry add --group dev pyinstaller"
 
-# Install dependencies
-poetry install --with-dev *> install_output.txt
+"Install dependencies..."
+Run-Exit_On_Error  "poetry install --no-root"
 
-if (Select-String -Path "install_output.txt" -Pattern "pyproject.toml changed significantly since poetry.lock was last generated") {
-    Write-Host "Detected outdated poetry.lock, running poetry lock..."
-    poetry lock
-    Write-Host "Re-running poetry install..."
-    poetry install --no-root --with-dev
-} else {
-    Write-Host "Poetry install completed without lock file errors."
-}
-
-Remove-Item "install_output.txt"
-
-# Inject version tag into version.txt
+"Reading tag..."
 $Tag | Out-File -Encoding ASCII version.txt
 
-# Replace tag in config.py
+"Writing tag into config.py ..."
 (Get-Content config.py) -replace '__DEV__VERSION__', $Tag | Set-Content config.py
 
-# Build executable with PyInstaller via Poetry
-poetry run pyinstaller --clean --onefile --name "FlightUpdater_$Tag" --add-data="version.txt;version.txt" --hidden-import=tkcalendar  main.py
+"Building executable with PyInstaller via Poetry"
+Run-Exit_On_Error 'poetry run pyinstaller --clean --onefile --name "FlightUpdater_$Tag" --add-data="version.txt;version.txt" --hidden-import=tkcalendar  main.py'
 
-# Copy config.json.template to dist/config.json
+"Copying config.json.template to dist/config.json"
 Copy-Item -Path "config.json.template" -Destination "dist\config.json" -Force
 
 Write-Host ""
