@@ -17,7 +17,7 @@ class FlightFetcher:
         self.aerolog_path = aerolog_path
         self.ktrax_id = ktrax_id
         self.tz = tz
-        self.gliding_url = base_url + '/flights.json'
+        self.gliding_url = base_url + '/api/flights.json'
         self.ktrax_url = 'https://ktrax.kisstech.ch/backend/logbook'
         self.headers = {
             'X-API-KEY': api_token,
