@@ -40,7 +40,8 @@ $Tag | Out-File -Encoding ASCII version.txt
 (Get-Content config.py) -replace '__DEV__VERSION__', $Tag | Set-Content config.py
 
 # Build executable with PyInstaller via Poetry
-poetry run pyinstaller --clean --onefile --name "FlightUpdater_$Tag" --add-data="version.txt;version.txt" main.py
+poetry run python -c "import tkcalendar; print(tkcalendar.__file__)"
+poetry run pyinstaller --clean --onefile --name "FlightUpdater_$Tag" --add-data="version.txt;version.txt" --hidden-import=tkcalendar  main.py
 
 # Copy config.json.template to dist/config.json
 Copy-Item -Path "config.json.template" -Destination "dist\config.json" -Force
