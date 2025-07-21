@@ -33,11 +33,6 @@ jobs:
           git tag ${{ github.event.inputs.tag }}
           git push origin ${{ github.event.inputs.tag }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller pandas openpyxl
-
       - name: Run build script
         run: ./build.ps1 ${{ github.event.inputs.tag }}
 
