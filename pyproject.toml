@@ -3,10 +3,10 @@ name = "flightupdater"
 version = "0.1.0"
 description = ""
 authors = [
+    {name = "Paul Atkins",email = "paul@ruskin.me.uk"},
     {name = "Bruno Tagliapietra",email = "bruno.tagliapietra@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13,<4"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
