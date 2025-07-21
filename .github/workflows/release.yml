@@ -15,6 +15,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -34,7 +39,7 @@ jobs:
           pip install pyinstaller pandas openpyxl
 
       - name: Run build script
-        run: ./build.bat ${{ github.event.inputs.tag }}
+        run: ./build.ps1 ${{ github.event.inputs.tag }}
 
       - name: Zip dist folder
         run: powershell Compress-Archive -Path dist\* -DestinationPath dist\FlightUpdater-${{ github.event.inputs.tag }}.zip

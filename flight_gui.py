@@ -20,11 +20,13 @@ from reportlab.platypus   import Paragraph, Spacer
 import config
 
 class FlightUpdaterApp:
-    def __init__(self, root, api_token, aerolog_path):
+    def __init__(self, root):
         # Initialize data storage
         self.ga = []
         self.kt = []
         self.az = []
+
+        self.config = config.load_config()
 
         # Track whether to include tows
         self.include_tows = tk.BooleanVar(value=False)
@@ -33,7 +35,11 @@ class FlightUpdaterApp:
         self.launch_sort = tk.BooleanVar(value=True)        
 
         # FlightFetcher instance
-        self.fetcher = FlightFetcher(api_token, aerolog_path)
+        self.fetcher = FlightFetcher(
+            self.config["api_key"], 
+            self.config["aerolog_path"], 
+            self.config["base_url"]
+            )
 
         # Window setup
         root.title('Flight Updater '+ config.VERSION)

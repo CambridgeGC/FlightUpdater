@@ -1,7 +1,6 @@
 import requests
 from datetime import datetime
 import pandas as pd
-import config
 
 # Mapping of raw callsigns to canonical identifiers
 aircraft_mapping = {
@@ -14,15 +13,14 @@ aircraft_mapping = {
 }
 
 class FlightFetcher:
-    def __init__(self, api_token, aerolog_path, ktrax_id='GRANSDEN LODGE', tz='1'):
-        self.api_token = api_token
+    def __init__(self, api_token, aerolog_path, base_url, ktrax_id='GRANSDEN LODGE', tz='1'):
         self.aerolog_path = aerolog_path
         self.ktrax_id = ktrax_id
         self.tz = tz
-        self.gliding_url = config.BASE_URL + '/flights.json'
+        self.gliding_url = base_url + '/flights.json'
         self.ktrax_url = 'https://ktrax.kisstech.ch/backend/logbook'
         self.headers = {
-            'X-API-KEY': self.api_token,
+            'X-API-KEY': api_token,
             'Accept': 'application/json'
         }
 

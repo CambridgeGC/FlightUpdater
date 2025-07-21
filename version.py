@@ -1,1 +1,0 @@
-VERSION = "__DEV__VERSION__"
