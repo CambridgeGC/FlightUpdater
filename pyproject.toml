@@ -1,24 +1,20 @@
-[project]
+[tool.poetry]
 name = "flightupdater"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "Paul Atkins",email = "paul@ruskin.me.uk"},
-    {name = "Bruno Tagliapietra",email = "bruno.tagliapietra@gmail.com"}
-]
-readme = "README.md"
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+version = "2.0.1"
+description = "Flight updater GUI using GlidingLib"
+authors = ["Paul Ruskin"]
+packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
-python = "3.13.5"
-pandas = ">=2.3.1,<3.0.0"
-requests = ">=2.32.4,<3.0.0"
-tkcalendar = ">=1.6.1,<2.0.0"
-reportlab = ">=4.4.2,<5.0.0"
+python = ">=3.13,<3.15"
+glidinglib = {path = "../glidinglib", develop = true}
+requests = "^2.33.1"
+tkcalendar = "^1.6.1"
+reportlab = "^4.4.0"
 
 [tool.poetry.group.dev.dependencies]
-pyinstaller = "^6.14.2"
+pyinstaller = "^6.15.0"
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
