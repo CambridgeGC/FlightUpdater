@@ -1,9 +1,6 @@
-import os
 import sys
-import tempfile
 import threading
 import tkinter as tk
-from datetime import datetime
 from tkinter import ttk, scrolledtext, messagebox
 import traceback
 from pathlib import Path
@@ -12,22 +9,8 @@ from tkcalendar import DateEntry
 from model.flight_display_row import FlightDisplayRow
 from services.flight_comparison_service import find_unmatched
 
-try:
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import landscape, A4
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-except ImportError:
-    colors = None
-    landscape = None
-    A4 = None
-    getSampleStyleSheet = None
-    SimpleDocTemplate = None
-    Table = None
-    TableStyle = None
-    Paragraph = None
-    Spacer = None
-
+from view.flight_table_formatter import FlightTableFormatter
+from view.ga_pdf_printer import GAPdfPrinter
 
 class FlightUpdaterApp:
     def __init__(self, root: tk.Tk, updater_service):
@@ -175,19 +158,6 @@ class FlightUpdaterApp:
         self.print_btn.config(state=state)
         self.test_errors_btn.config(state=state)
 
-    def _filter_grl_flights(
-        self,
-        flights: list[FlightDisplayRow],
-    ) -> list[FlightDisplayRow]:
-        if not self.grl_only.get():
-            return flights
-
-        return [
-            f for f in flights
-            if f.source != "GA"
-            or (f.airfield_takeoff or "").upper() == "GRL"
-            or (f.airfield_landing or "").upper() == "GRL"
-        ]
 
     def list_ga(self) -> None:
         self.print_flights(
@@ -265,33 +235,6 @@ class FlightUpdaterApp:
         total = aerotow + winch + self_launch + tmg + other
         return aerotow, winch, self_launch, tmg, other, total
 
-    def _sort_flights_for_display(
-        self,
-        flights: list[FlightDisplayRow],
-        group_by_launch_type: bool = False,
-    ) -> list[FlightDisplayRow]:
-        def time_key(f: FlightDisplayRow):
-            return (f.takeoff_time is None, f.takeoff_time or datetime.min.time())
-
-        if not group_by_launch_type:
-            return sorted(flights, key=time_key)
-
-        tug_count = len({
-            f.tow_callsign
-            for f in flights
-            if (f.launch_method or "").lower() == "aerotow" and f.tow_callsign
-        })
-
-        if tug_count > 1:
-            return sorted(
-                flights,
-                key=lambda f: (
-                    f.tow_callsign if (f.launch_method or "").lower() == "aerotow" else "",
-                    *time_key(f),
-                ),
-            )
-
-        return sorted(flights, key=time_key)
 
     def _get_version(self) -> str:
         try:
@@ -456,161 +399,27 @@ class FlightUpdaterApp:
         notes_only: bool = False,
         group_by_launch_type: bool = False,
     ) -> None:
-        flights_unsorted = self._filter_grl_flights(flights_unsorted)
-
-        flights = self._sort_flights_for_display(
-            flights_unsorted,
+        formatter = FlightTableFormatter(
+            grl_only=self.grl_only.get(),
             group_by_launch_type=group_by_launch_type,
         )
 
-        header = (
-            f"{'No':>3} "
-            f"{'Seq':>6} "
-            f"{'Launch':12}"
-            f"{'Aircraft':16}"
-            f"{'Takeoff':8}{'Landing':8}"
-            f"{'P1':35}{'P2':35}{'Payer':8}"
-            f"{'Tow':10}{'Tug pilot':36}{'Height':8}"
-            f"{'Category':15}"
-            f"{'From':10}{'To':10}"
-            f"{'Source':6}"
-        )
-
-        if group_by_launch_type:
-            groups = ["aerotow", "winch", "self-launch", "tmg", "other"]
-
-            for group in groups:
-                if group == "other":
-                    subset = [
-                        f
-                        for f in flights
-                        if (f.launch_method or "").lower() not in groups[:-1]
-                    ]
-                else:
-                    subset = [
-                        f
-                        for f in flights
-                        if (f.launch_method or "").lower() == group
-                    ]
-
-                if not subset:
-                    continue
-
-                self.log_message("")
-                self.log_message(f"--- {group.upper()} Flights ---")
-                self.log_message(header)
-
-                self._print_flight_rows(subset, notes_only)
-            return
-
-        self.log_message("")
-        self.log_message(title)
-        self.log_message(header)
-        self._print_flight_rows(flights, notes_only)
-
-    def _aircraft_str(self, flight: FlightDisplayRow) -> str:
-        reg = (flight.registration or "").strip()
-        cs = (flight.callsign or "").strip()
-
-        cs4 = f"{cs[:4]:<4}"
-
-        if reg and cs and reg != cs:
-            return f"{cs4}: {reg}"
-
-        return reg or cs4
-
-    def _print_flight_rows(
-        self,
-        flights: list[FlightDisplayRow],
-        notes_only: bool,
-    ) -> None:
-        idx = 0
-
-        for flight in flights:
-            launch = (flight.launch_method or "").lower()
-
-            note_str = flight.notes if flight.notes else ""
-
-            if notes_only and not note_str:
-                continue
-
-            idx += 1
-            tag = "even" if idx % 2 == 0 else "odd"
-
-            height_str = ""
-            if launch == "aerotow":
-                height_str = str(flight.height_ft or "")
-
-            tow_pilot = (
-                f"{flight.tow_pilot_account or '':6}"
-                f"{flight.tow_pilot_name or '':30}"
-            )
-
-            aircraft_str = self._aircraft_str(flight)
-            line = (
-                f"{idx:3} "
-                f"{(flight.sequence_number or ''):6} "
-                f"{flight.launch_method or '':12}"
-                f"{aircraft_str:16}"
-                f"{flight.takeoff_str():8}"
-                f"{flight.landing_str():8}"
-                f"{self._crew_str(flight.pic_account, flight.pic_name, 30):35}"
-                f"{self._crew_str(flight.p2_account, flight.p2_name, 30):35}"
-                f"{flight.payer_account or '':8}"
-                f"{flight.tow_callsign or '':10}"
-                f"{tow_pilot:36}"
-                f"{height_str:8}"
-                f"{flight.category or '':15}"
-                f"{flight.airfield_takeoff or '':10}"
-                f"{flight.airfield_landing or '':10}"
-                f"{flight.source or '':6}"
-            )
-
+        for line, tag in formatter.format_flights(
+            flights_unsorted,
+            title,
+            notes_only=notes_only,
+            group_by_launch_type=group_by_launch_type,
+        ):
             self.log_message(line, tag)
 
-    def _crew_str(self, account: str, name: str, name_width: int = 18) -> str:
-        acct = (account or "")[:4]
-        nm = (name or "")[:name_width]
-        return f"{acct:<4} {nm:<{name_width}}"
 
     def print_ga_notes(self, flights_unsorted: list[FlightDisplayRow]) -> None:
-        flights = [
-            f for f in flights_unsorted
-            if f.notes
-        ]
-
-        if not flights:
-            return
-
-        flights = sorted(
-            flights,
-            key=lambda f: (
-                f.takeoff_time is None,
-                f.takeoff_time or datetime.min.time(),
-            ),
+        formatter = FlightTableFormatter(
+            grl_only=self.grl_only.get(),
+            group_by_launch_type=False,
         )
 
-        self.log_message("")
-        self.log_message("GA flights with notes")
-
-        header = (
-            f"{'No':4}{'Seq':4}{'Aircraft':10}"
-            f"{'Takeoff':8}"
-            f"{'Notes':80}"
-        )
-        self.log_message(header)
-
-        for idx, flight in enumerate(flights, start=1):
-            tag = "even" if idx % 2 == 0 else "odd"
-
-            line = (
-                f"{idx:3} "
-                f"{(flight.sequence_number or ''):3} "
-                f"{flight.callsign or '':10}"
-                f"{flight.takeoff_str():8}"
-                f"{flight.notes or '':80}"
-            )
-
+        for line, tag in formatter.format_ga_notes(flights_unsorted):
             self.log_message(line, tag)
 
     def print_ga(self) -> None:
@@ -618,175 +427,26 @@ class FlightUpdaterApp:
             messagebox.showinfo("Print GA", "No Gliding.App flights to print.")
             return
 
-        if SimpleDocTemplate is None:
-            messagebox.showerror(
-                "Print GA",
-                "ReportLab is not installed. Install reportlab to enable printing.",
-            )
-            return
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp.close()
-
-        doc = SimpleDocTemplate(
-            tmp.name,
-            pagesize=landscape(A4),
-            leftMargin=20,
-            rightMargin=20,
-            topMargin=20,
-            bottomMargin=20,
-        )
-
-        styles = getSampleStyleSheet()
-        story = [
-            Paragraph(
-                f"Gliding.App Flights - {self.date_entry.get_date()}",
-                styles["Heading2"],
-            ),
-            Spacer(1, 6),
-        ]
-
-        flights = self._filter_grl_flights(self.ga)
-        flights = self._sort_flights_for_display(
-            flights,
-            group_by_launch_type=self.launch_sort.get(),
-        )
-
-        def add_pdf_table(title: str, subset: list[FlightDisplayRow]) -> None:
-            if not subset:
-                return
-
-            story.append(Paragraph(title, styles["Heading3"]))
-            story.append(Spacer(1, 6))
-
-            data = [[
-                "No", "Seq", "Launch", "Aircraft", "Takeoff", "Landing",
-                "P1", "P2", "Payer", "Tow", "Tug pilot", "Height",
-                "Category", "From", "To",
-            ]]
-
-            for idx, flight in enumerate(subset, start=1):
-                launch = (flight.launch_method or "").lower()
-                height_str = str(flight.height_ft or "") if launch == "aerotow" else ""
-
-                tow_pilot = (
-                    f"{flight.tow_pilot_account or ''} "
-                    f"{flight.tow_pilot_name or ''}"
-                ).strip()
-
-                data.append([
-                    idx,
-                    flight.sequence_number or "",
-                    flight.launch_method or "",
-                    self._aircraft_str(flight),
-                    flight.takeoff_str(),
-                    flight.landing_str(),
-                    self._crew_str(flight.pic_account, flight.pic_name, 30),
-                    self._crew_str(flight.p2_account, flight.p2_name, 30),
-                    flight.payer_account or "",
-                    flight.tow_callsign or "",
-                    tow_pilot,
-                    height_str,
-                    flight.category or "",
-                    flight.airfield_takeoff or "",
-                    flight.airfield_landing or "",
-                ])
-
-            from reportlab.lib.units import mm
-
-            col_widths = [
-                7 * mm,    # No
-                9 * mm,    # Seq
-                17 * mm,   # Launch
-                25 * mm,   # Aircraft
-                12 * mm,   # Takeoff
-                12 * mm,   # Landing
-                42 * mm,   # P1
-                42 * mm,   # P2
-                10 * mm,   # Payer
-                14 * mm,   # Tow
-                25 * mm,   # Tug pilot
-                11 * mm,   # Height
-                18 * mm,   # Category
-                10 * mm,   # From
-                10 * mm,   # To
-            ]
-
-            table = Table(data, colWidths=col_widths, repeatRows=1)
-
-            
-            table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-
-                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                ("ALIGN", (0, 1), (1, -1), "RIGHT"),
-                ("ALIGN", (4, 1), (5, -1), "CENTER"),
-
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-
-                ("FONTNAME", (6, 1), (7, -1), "Courier"),  # P1 + P2 data
-
-                ("FONTSIZE", (0, 0), (-1, -1), 7),
-                ("LEFTPADDING", (0, 0), (-1, -1), 1),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 1),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-            ]))
-
-            styles["Heading2"].fontSize = 12
-            styles["Heading3"].fontSize = 10
-
-            story.append(table)
-            story.append(Spacer(1, 12))
-
-        if self.launch_sort.get():
-            groups = ["aerotow", "winch", "self-launch", "tmg", "other"]
-
-            for group in groups:
-                if group == "other":
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower() not in groups[:-1]
-                    ]
-                else:
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower() == group
-                    ]
-
-                add_pdf_table(f"{group.upper()} Flights", subset)
-        else:
-            add_pdf_table("All Flights", flights)
-
-        doc.build(story)
-
         try:
-            if self.print_to_file.get():
-                from pathlib import Path
-                from shutil import move
+            printer = GAPdfPrinter(
+                save_to_file=self.print_to_file.get(),
+                grl_only=self.grl_only.get(),
+                group_by_launch_type=self.launch_sort.get(),
+            )
 
-                downloads = Path.home() / "Downloads"
-                downloads.mkdir(exist_ok=True)
+            output_path = printer.print_ga(
+                self.ga,
+                self.date_entry.get_date(),
+            )
 
-                from datetime import datetime
-
-                stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                filename = f"GlidingApp_{stamp}.pdf"
-                target = downloads / filename
-
-                move(tmp.name, target)
-
-                self.log_message(f"Saved PDF to {target}")
-
+            if output_path is not None:
+                self.log_message(f"Saved PDF to {output_path}")
             else:
-                if sys.platform.startswith("win"):
-                    os.startfile(tmp.name, "print")
-                else:
-                    os.system(f"lpr {tmp.name}")
+                self.log_message("Sent Gliding.App PDF to printer")
 
         except Exception as exc:
+            self.log_message("ERROR printing Gliding.App flights:")
+            self.log_message(traceback.format_exc())
             messagebox.showerror("Print GA", f"Failed to output PDF:\n{exc}")
 
     def test_for_errors(self) -> None:

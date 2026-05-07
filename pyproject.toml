@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "flightupdater"
-version = "2.0.1"
+version = "2.0.2"
 description = "Flight updater GUI using GlidingLib"
 authors = ["Paul Ruskin"]
 packages = [{ include = "src" }]
