@@ -57,6 +57,9 @@ Write-Host "Building executable..."
 
 Run-Exit-On-Error "poetry run pyinstaller --clean --onefile --name `"FlightUpdater_$Version`" --paths `"src;..\glidinglib\src`" --add-data `"$VersionFile;$VersionFile`" --hidden-import=tkcalendar `"$MainFile`""
 
+# Copy version file next to the EXE as a runtime fallback
+Copy-Item $VersionFile "dist\version.txt" -Force
+
 # Copy config template
 if (Test-Path $TemplateConfig) {
     Write-Host "Copying config template..."

@@ -1,4 +1,5 @@
 import sys
+import json
 import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
@@ -196,7 +197,17 @@ class FlightUpdaterApp:
             self.log_message("")
             self.log_message("Sending Gliding.App flights to Aerolog...")
 
-            result = self.service.send_glidingapp_flights_to_aerolog(self.ga)
+            formatter = FlightTableFormatter(
+                grl_only=self.grl_only.get(),
+                group_by_launch_type=False,
+            )
+
+            ga_flights_to_send = formatter.filter_grl_flights(self.ga)
+
+            result = self.service.send_glidingapp_flights_to_aerolog(
+                ga_flights_to_send,
+                modify_payer=self.modify_payer.get(),
+)
 
             self.log_message(
                 f"Aerolog send result: "
@@ -204,6 +215,21 @@ class FlightUpdaterApp:
                 f"sent={result.get('sent')}, "
                 f"records={result.get('record_count')}"
             )
+
+            payload = result.get("payload")
+            if payload is not None:
+                self.log_message("")
+                self.log_message("Aerolog payload:")
+
+                payload_json = json.dumps(
+                    payload,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str,
+                )
+
+                for line in payload_json.splitlines():
+                    self.log_message(line)
 
         except Exception:
             self.log_message("ERROR sending to Aerolog:")
@@ -237,17 +263,29 @@ class FlightUpdaterApp:
 
 
     def _get_version(self) -> str:
-        try:
-            # PyInstaller: version.txt is next to the exe
-            if getattr(sys, "frozen", False):
-                version_path = Path(sys.executable).parent / "version.txt"
-            else:
-                # Dev: project root
-                version_path = Path(__file__).resolve().parents[2] / "version.txt"
+        candidates: list[Path] = []
 
-            return version_path.read_text(encoding="ascii").strip()
-        except Exception:
-            return "unknown"
+        # PyInstaller one-file bundled data location
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "version.txt")
+
+        # PyInstaller one-folder / exe directory fallback
+        if getattr(sys, "frozen", False):
+            candidates.append(Path(sys.executable).resolve().parent / "version.txt")
+
+        # Source mode: FlightUpdater/version.txt
+        candidates.append(Path(__file__).resolve().parents[2] / "version.txt")
+
+        for version_path in candidates:
+            try:
+                if version_path.exists():
+                    version = version_path.read_text(encoding="ascii").strip()
+                    if version:
+                        return version
+            except Exception:
+                pass
+
+        return "unknown"
 
 
     def _get_aerolog_mode(self) -> str:

@@ -1,23 +1,20 @@
 from datetime import date
-from logging import config
-
+from copy import deepcopy
 from glidinglib.clients.ktrax_flight_client import KtraxFlightClient
 from glidinglib.services.glidingapp_flight_service import GlidingAppFlightService
 from glidinglib.services.ktrax_flight_service import KtraxFlightService
 from glidinglib.services.aerolog_flight_service import AerologFlightService
 from glidinglib.services.glidingapp_account_service import GlidingAppAccountService
 from glidinglib.services.glidingapp_aircraft_service import GlidingAppAircraftService
-from glidinglib.models.aerolog_flight_model import AerologFlight
-from glidinglib.mappers.glidingapp_combination_flight_mapper import (
-    map_glidingapp_flights_to_combination_flights,
-)
 from glidinglib.mappers.ktrax_combination_flight_mapper import (
     map_ktrax_flights_to_combination_flights,
 )
 from glidinglib.mappers.aerolog_combination_flight_mapper import (
     map_aerolog_flights_to_combination_flights,
 )
-
+from glidinglib.mappers.glidingapp_combination_flight_mapper import (
+    map_glidingapp_flights_to_combination_flights,
+)
 from glidinglib.models.combination_flight_model import CombinationFlight
 from model.flight_display_row import FlightDisplayRow
 
@@ -43,19 +40,29 @@ class FlightUpdaterService:
                 tz=ktrax_config.get("tz"),
             )
         )
+        self.ga_combination_flights: list[CombinationFlight] = []
 
     def get_glidingapp_flights(
         self,
         flight_date: date,
         modify_payer: bool = True,
-            ) -> list[FlightDisplayRow]:
+    ) -> list[FlightDisplayRow]:
         ga_flights = self.ga_service.get_flights_for_date(flight_date)
-        combination_flights = map_glidingapp_flights_to_combination_flights(ga_flights)
+        base_combination_flights = map_glidingapp_flights_to_combination_flights(ga_flights)
+
+        self.ga_base_combination_flights = base_combination_flights
+
+        combination_flights = deepcopy(base_combination_flights)
 
         if modify_payer:
             self._modify_payers_by_category(combination_flights)
 
-        return [self._combination_to_display_row(f) for f in combination_flights]
+        self.ga_combination_flights = combination_flights
+
+        return [
+            self._combination_to_display_row(f)
+            for f in combination_flights
+        ]
 
     def get_ktrax_flights(self, flight_date: date) -> list[FlightDisplayRow]:
         kt_flights = self.ktrax_service.get_flights_for_date(flight_date)
@@ -172,44 +179,41 @@ class FlightUpdaterService:
     def send_glidingapp_flights_to_aerolog(
         self,
         flights: list[FlightDisplayRow],
+        modify_payer: bool = True,
     ) -> dict:
-        records = []
+        if not self.ga_base_combination_flights:
+            return {
+                "status": "no_records",
+                "sent": False,
+                "record_count": 0,
+                "payload": [],
+            }
 
-        aerolog_flights = []
+        sync_keys_to_send = {
+            f.sync_key
+            for f in flights
+            if f.source == "GA" and f.sync_key is not None
+        }
 
-        for f in flights:
-            if f.source != "GA":
-                continue
+        combination_flights_to_send = [
+            deepcopy(f)
+            for f in self.ga_base_combination_flights
+            if f.sync_key in sync_keys_to_send
+        ]
 
-            aerolog_flights.append(
-                AerologFlight(
-                    flight_date=f.flight_date,
-                    sync_key=f.sync_key,
-                    sequence_number=f.sequence_number or 0,
-                    registration=f.registration,
-                    callsign=f.callsign,
-                    pic_membership_number=f.pic_account,
-                    p2_membership_number=f.p2_account,
-                    takeoff_time=f.takeoff_time,
-                    landing_time=f.landing_time,
-                    launch_method=f.launch_method,
-                    launch_height_ft=f.height_ft,
-                    tug_registration=f.tow_callsign,
-                    tug_pilot=f.tow_pilot_account,
-                    airfield_takeoff=f.airfield_takeoff,
-                    airfield_landing=f.airfield_landing,
-                    remarks=f.notes,
-                )
-            )
+        if not combination_flights_to_send:
+            return {
+                "status": "no_records",
+                "sent": False,
+                "record_count": 0,
+                "payload": [],
+            }
 
-        result = self.aerolog_service.send_flight_log_to_aerolog(
-            aerolog_flights,
+        if modify_payer:
+            self._modify_payers_by_category(combination_flights_to_send)
+
+        return self.aerolog_service.send_combination_flight_log_to_aerolog(
+            combination_flights_to_send,
             data_source="config",
             dry_run=False,
         )
-        return {
-            "status": result.get("status"),
-            "sent": result.get("sent"),
-            "record_count": result.get("record_count"),
-            "result": result,
-        }
