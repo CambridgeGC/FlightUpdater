@@ -148,8 +148,8 @@ class GAPdfPrinter:
                 tow_pilot,
                 height_str,
                 flight.category or "",
-                flight.airfield_takeoff or "",
-                flight.airfield_landing or "",
+                self.formatter.fixed_width(flight.airfield_takeoff, 10).strip(),
+                self.formatter.fixed_width(flight.airfield_landing, 10).strip(),
             ])
 
         col_widths = [

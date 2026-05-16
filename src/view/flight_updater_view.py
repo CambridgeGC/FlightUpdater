@@ -136,6 +136,9 @@ class FlightUpdaterApp:
 
         self.log_widget.tag_configure("even", background="white")
         self.log_widget.tag_configure("odd", background="#f0f0f0")
+        self.log_widget.tag_configure("error", foreground="red")
+        self.log_widget.tag_configure("error_even", foreground="red", background="white")
+        self.log_widget.tag_configure("error_odd", foreground="red", background="#f0f0f0")
 
     def log_message(self, msg: str, tag: str | None = None) -> None:
         self.log_widget.configure(state="normal")
@@ -167,6 +170,7 @@ class FlightUpdaterApp:
 
 
     def list_ga(self) -> None:
+        self.clear()
         self.print_flights(
             self.ga,
             "All Gliding.App flights",
@@ -174,6 +178,7 @@ class FlightUpdaterApp:
         )
 
     def list_ktrax(self) -> None:
+        self.clear()
         self.print_flights(
             self.kt,
             "All Ktrax flights",
@@ -181,6 +186,7 @@ class FlightUpdaterApp:
         )
 
     def list_aerolog(self) -> None:
+        self.clear()
         self.print_flights(
             self.al,
             "All Aerolog flights",
@@ -464,6 +470,8 @@ class FlightUpdaterApp:
         title: str,
         notes_only: bool = False,
         group_by_launch_type: bool = False,
+        include_non_grl_sections: bool = True,
+        error_style: bool = False,
     ) -> None:
         formatter = FlightTableFormatter(
             grl_only=False,
@@ -475,7 +483,16 @@ class FlightUpdaterApp:
             title,
             notes_only=notes_only,
             group_by_launch_type=group_by_launch_type,
+            include_non_grl_sections=include_non_grl_sections,
         ):
+            if error_style:
+                if tag == "even":
+                    tag = "error_even"
+                elif tag == "odd":
+                    tag = "error_odd"
+                else:
+                    tag = "error"
+
             self.log_message(line, tag)
 
 
@@ -530,7 +547,7 @@ class FlightUpdaterApp:
         error_groups = self.service.test_for_errors(self.ga)
 
         self.log_message("")
-        self.log_message("Possible Gliding.App errors")
+        self.log_message("Possible Gliding.App errors", "error")
 
         if not error_groups:
             self.log_message("No errors found.")
@@ -541,4 +558,6 @@ class FlightUpdaterApp:
                 flights,
                 heading,
                 group_by_launch_type=False,
+                include_non_grl_sections=False,
+                error_style=True,
             )

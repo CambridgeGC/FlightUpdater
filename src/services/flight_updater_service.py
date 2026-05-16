@@ -158,6 +158,7 @@ class FlightUpdaterService:
             "Club aircraft flown by an instructor/BI with no P2": [],
             "P2 as non-members with category not set": [],
             "TMG flights with non-member P2 and invalid category": [],
+            "Aerotows with no tug pilot listed": [],
         }
 
         for f in flights:
@@ -182,13 +183,21 @@ class FlightUpdaterService:
             category = (f.category or "").strip().lower()
             launch = (f.launch_method or "").strip().lower()
 
+            is_aerotow = launch == "aerotow"
+            has_no_tug_pilot = not (f.tow_pilot_account or "").strip() and not (
+                f.tow_pilot_name or ""
+            ).strip()
+
+            if is_aerotow and has_no_tug_pilot:
+                errors["Aerotows with no tug pilot listed"].append(f)
+
             if p2_not_member:
                 if launch == "tmg":
                     if category in {"trial flight", "city uni", "scouts"}:
                         continue
                     if category not in {"club", "training"}:
                         errors["TMG flights with non-member P2 and invalid category"].append(f)
-                elif not category:
+                elif not category and is_club_two_seater:
                     errors["P2 as non-members with category not set"].append(f)
 
         return {

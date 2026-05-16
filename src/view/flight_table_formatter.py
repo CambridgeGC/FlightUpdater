@@ -72,6 +72,7 @@ class FlightTableFormatter:
         flights_unsorted: list[FlightDisplayRow],
         title: str,
         group_by_launch_type: bool | None = None,
+        include_non_grl_sections: bool = True,
     ) -> list[tuple[str, list[FlightDisplayRow]]]:
         """
         Build display/PDF sections.
@@ -123,23 +124,24 @@ class FlightTableFormatter:
             if normal_flights:
                 sections.append((title, normal_flights))
 
-        if away_from_grl_club:
-            sections.append((
-                "Flights departing away from GRL - club aircraft",
-                self.sort_flights_for_display(
-                    away_from_grl_club,
-                    group_by_launch_type=False,
-                ),
-            ))
+        if include_non_grl_sections:
+            if away_from_grl_club:
+                sections.append((
+                    "Flights departing away from GRL - club aircraft",
+                    self.sort_flights_for_display(
+                        away_from_grl_club,
+                        group_by_launch_type=False,
+                    ),
+                ))
 
-        if away_from_grl_non_club:
-            sections.append((
-                "Flights departing away from GRL - non-club aircraft",
-                self.sort_flights_for_display(
-                    away_from_grl_non_club,
-                    group_by_launch_type=False,
-                ),
-            ))
+            if away_from_grl_non_club:
+                sections.append((
+                    "Flights departing away from GRL - non-club aircraft",
+                    self.sort_flights_for_display(
+                        away_from_grl_non_club,
+                        group_by_launch_type=False,
+                    ),
+                ))
 
         return sections
 
@@ -227,11 +229,13 @@ class FlightTableFormatter:
         title: str,
         notes_only: bool = False,
         group_by_launch_type: bool | None = None,
+        include_non_grl_sections: bool = True,
     ) -> list[LogLine]:
         sections = self.build_sections(
             flights_unsorted,
             title,
             group_by_launch_type=group_by_launch_type,
+            include_non_grl_sections=include_non_grl_sections,
         )
 
         lines: list[LogLine] = []
@@ -356,8 +360,8 @@ class FlightTableFormatter:
                 f"{tow_pilot:36}"
                 f"{height_str:8}"
                 f"{flight.category or '':15}"
-                f"{flight.airfield_takeoff or '':10}"
-                f"{flight.airfield_landing or '':10}"
+                f"{self.fixed_width(flight.airfield_takeoff, 10)}"
+                f"{self.fixed_width(flight.airfield_landing, 10)}"
                 f"{flight.source or '':6}"
             )
 
@@ -396,3 +400,12 @@ class FlightTableFormatter:
 
         nm = (name or "")[:name_width]
         return f"{acct_str} {nm:<{name_width}}"
+    
+    @staticmethod
+    def fixed_width(value: object, width: int) -> str:
+        text = str(value or "").strip()
+
+        if len(text) > width:
+            text = text[:width]
+
+        return f"{text:<{width}}"    
