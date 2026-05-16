@@ -14,22 +14,42 @@ class FlightTableFormatter:
         grl_only: bool = True,
         group_by_launch_type: bool = False,
     ):
+        # grl_only is now only used by the Aerolog upload path.
+        # Listing and PDF printing deliberately show all GA flights.
         self.grl_only = grl_only
         self.group_by_launch_type = group_by_launch_type
 
-    def filter_grl_flights(
+    def filter_aerolog_upload_flights(
         self,
         flights: list[FlightDisplayRow],
+        include_non_grl_club_departures: bool = False,
     ) -> list[FlightDisplayRow]:
-        if not self.grl_only:
-            return flights
+        """
+        Used only for Aerolog upload.
 
-        return [
-            f for f in flights
-            if f.source != "GA"
-            or (f.airfield_takeoff or "").upper() == "GRL"
-            or (f.airfield_landing or "").upper() == "GRL"
-        ]
+        Always include GA flights that departed from GRL.
+
+        If include_non_grl_club_departures is True, also include GA flights
+        that departed from somewhere other than GRL, but only where the aircraft
+        is a club aircraft.
+        """
+        upload_flights: list[FlightDisplayRow] = []
+
+        for flight in flights:
+            if flight.source != "GA":
+                continue
+
+            departed_from_grl = (flight.airfield_takeoff or "").upper() == "GRL"
+            is_club_aircraft = getattr(flight, "is_club_aircraft", False)
+
+            if departed_from_grl:
+                upload_flights.append(flight)
+                continue
+
+            if include_non_grl_club_departures and is_club_aircraft:
+                upload_flights.append(flight)
+
+        return upload_flights
 
     def sort_flights_for_display(
         self,
@@ -45,24 +65,161 @@ class FlightTableFormatter:
         if not group_by_launch_type:
             return sorted(flights, key=time_key)
 
-        tug_count = len({
+        return sorted(flights, key=time_key)
+
+    def build_sections(
+        self,
+        flights_unsorted: list[FlightDisplayRow],
+        title: str,
+        group_by_launch_type: bool | None = None,
+    ) -> list[tuple[str, list[FlightDisplayRow]]]:
+        """
+        Build display/PDF sections.
+
+        Display and print always include all flights supplied.
+
+        For GA flights:
+        - flights departing away from GRL go into their own section
+        - if launch grouping is enabled, aerotows are split by tug when
+          there is more than one tow aircraft
+        """
+        if group_by_launch_type is None:
+            group_by_launch_type = self.group_by_launch_type
+
+        flights = self.sort_flights_for_display(
+            flights_unsorted,
+            group_by_launch_type=group_by_launch_type,
+        )
+
+        away_from_grl_club = [
+            f for f in flights
+            if f.source == "GA"
+            and (f.airfield_takeoff or "").upper() != "GRL"
+            and getattr(f, "is_club_aircraft", False)
+        ]
+
+        away_from_grl_non_club = [
+            f for f in flights
+            if f.source == "GA"
+            and (f.airfield_takeoff or "").upper() != "GRL"
+            and not getattr(f, "is_club_aircraft", False)
+        ]
+
+        normal_flights = [
+            f for f in flights
+            if not (
+                f.source == "GA"
+                and (f.airfield_takeoff or "").upper() != "GRL"
+            )
+        ]
+
+        sections: list[tuple[str, list[FlightDisplayRow]]] = []
+
+        if group_by_launch_type:
+            sections.extend(
+                self._build_launch_sections(normal_flights)
+            )
+        else:
+            if normal_flights:
+                sections.append((title, normal_flights))
+
+        if away_from_grl_club:
+            sections.append((
+                "Flights departing away from GRL - club aircraft",
+                self.sort_flights_for_display(
+                    away_from_grl_club,
+                    group_by_launch_type=False,
+                ),
+            ))
+
+        if away_from_grl_non_club:
+            sections.append((
+                "Flights departing away from GRL - non-club aircraft",
+                self.sort_flights_for_display(
+                    away_from_grl_non_club,
+                    group_by_launch_type=False,
+                ),
+            ))
+
+        return sections
+
+    def _build_launch_sections(
+        self,
+        flights: list[FlightDisplayRow],
+    ) -> list[tuple[str, list[FlightDisplayRow]]]:
+        sections: list[tuple[str, list[FlightDisplayRow]]] = []
+
+        aerotow_flights = [
+            f for f in flights
+            if (f.launch_method or "").lower() == "aerotow"
+        ]
+
+        tow_callsigns = sorted({
             f.tow_callsign
-            for f in flights
-            if (f.launch_method or "").lower() == "aerotow" and f.tow_callsign
+            for f in aerotow_flights
+            if f.tow_callsign
         })
 
-        if tug_count > 1:
-            return sorted(
-                flights,
-                key=lambda f: (
-                    f.tow_callsign
-                    if (f.launch_method or "").lower() == "aerotow"
-                    else "",
-                    *time_key(f),
-                ),
-            )
+        if len(tow_callsigns) > 1:
+            for tow_callsign in tow_callsigns:
+                subset = [
+                    f for f in aerotow_flights
+                    if f.tow_callsign == tow_callsign
+                ]
 
-        return sorted(flights, key=time_key)
+                if subset:
+                    sections.append((
+                        f"AEROTOW Flights - {tow_callsign}",
+                        self.sort_flights_for_display(
+                            subset,
+                            group_by_launch_type=False,
+                        ),
+                    ))
+
+            no_tow = [
+                f for f in aerotow_flights
+                if not f.tow_callsign
+            ]
+
+            if no_tow:
+                sections.append((
+                    "AEROTOW Flights - no tug recorded",
+                    self.sort_flights_for_display(
+                        no_tow,
+                        group_by_launch_type=False,
+                    ),
+                ))
+        elif aerotow_flights:
+            sections.append((
+                "AEROTOW Flights",
+                self.sort_flights_for_display(
+                    aerotow_flights,
+                    group_by_launch_type=False,
+                ),
+            ))
+
+        for group in ["winch", "self-launch", "tmg", "other"]:
+            if group == "other":
+                subset = [
+                    f for f in flights
+                    if (f.launch_method or "").lower() not in self.GROUPS[:-1]
+                ]
+            else:
+                subset = [
+                    f for f in flights
+                    if (f.launch_method or "").lower() == group
+                ]
+
+            if subset:
+                sections.append((
+                    f"{group.upper()} Flights",
+                    self.sort_flights_for_display(
+                        subset,
+                        group_by_launch_type=False,
+                    ),
+                ))
+
+        return sections
 
     def format_flights(
         self,
@@ -71,45 +228,29 @@ class FlightTableFormatter:
         notes_only: bool = False,
         group_by_launch_type: bool | None = None,
     ) -> list[LogLine]:
-        if group_by_launch_type is None:
-            group_by_launch_type = self.group_by_launch_type
-
-        flights = self.filter_grl_flights(flights_unsorted)
-        flights = self.sort_flights_for_display(
-            flights,
+        sections = self.build_sections(
+            flights_unsorted,
+            title,
             group_by_launch_type=group_by_launch_type,
         )
 
         lines: list[LogLine] = []
         header = self.header()
 
-        if group_by_launch_type:
-            for group in self.GROUPS:
-                if group == "other":
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower() not in self.GROUPS[:-1]
-                    ]
-                else:
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower() == group
-                    ]
+        for section_title, section_flights in sections:
+            if not section_flights:
+                continue
 
-                if not subset:
-                    continue
+            lines.append(("", None))
+            lines.append((section_title, None))
+            lines.append((header, None))
+            lines.extend(
+                self._format_rows(
+                    section_flights,
+                    notes_only=notes_only,
+                )
+            )
 
-                lines.append(("", None))
-                lines.append((f"--- {group.upper()} Flights ---", None))
-                lines.append((header, None))
-                lines.extend(self._format_rows(subset, notes_only=notes_only))
-
-            return lines
-
-        lines.append(("", None))
-        lines.append((title, None))
-        lines.append((header, None))
-        lines.extend(self._format_rows(flights, notes_only=notes_only))
         return lines
 
     def format_ga_notes(

@@ -53,6 +53,8 @@ class FlightUpdaterService:
         self.ga_base_combination_flights = base_combination_flights
 
         combination_flights = deepcopy(base_combination_flights)
+        aircraft_by_registration = self.aircraft_service.get_aircraft_by_registration()
+        aircraft_by_callsign = self.aircraft_service.get_aircraft_by_callsign()
 
         if modify_payer:
             self._modify_payers_by_category(combination_flights)
@@ -60,7 +62,11 @@ class FlightUpdaterService:
         self.ga_combination_flights = combination_flights
 
         return [
-            self._combination_to_display_row(f)
+            self._combination_to_display_row(
+                f,
+                aircraft_by_registration=aircraft_by_registration,
+                aircraft_by_callsign=aircraft_by_callsign,
+            )
             for f in combination_flights
         ]
 
@@ -77,7 +83,27 @@ class FlightUpdaterService:
     def _combination_to_display_row(
         self,
         flight: CombinationFlight,
+        aircraft_by_registration: dict | None = None,
+        aircraft_by_callsign: dict | None = None,
     ) -> FlightDisplayRow:
+        aircraft = None
+
+        if aircraft_by_registration or aircraft_by_callsign:
+            reg_key = (flight.registration or "").strip().upper()
+            cs_key = (flight.callsign or "").strip().upper()
+
+            aircraft = (
+                (aircraft_by_registration or {}).get(reg_key)
+                or (aircraft_by_callsign or {}).get(cs_key)
+            )
+
+        aircraft_category = ""
+        is_club_aircraft = False
+
+        if aircraft is not None:
+            aircraft_category = aircraft.category or ""
+            is_club_aircraft = aircraft_category.strip().lower() == "club"
+
         return FlightDisplayRow(
             source=flight.source,
             sync_key=flight.sync_key,
@@ -105,11 +131,15 @@ class FlightUpdaterService:
                 if flight.tow_release_height_ft is not None
                 else None
             ),
+
             category=flight.category,
+            aircraft_category=aircraft_category,
+            is_club_aircraft=is_club_aircraft,
+
             airfield_takeoff=flight.airfield_takeoff,
             airfield_landing=flight.airfield_landing,
             notes=flight.remarks,
-        )
+        )    
     def test_for_errors(
         self,
         flights: list[FlightDisplayRow],
@@ -154,6 +184,8 @@ class FlightUpdaterService:
 
             if p2_not_member:
                 if launch == "tmg":
+                    if category in {"trial flight", "city uni", "scouts"}:
+                        continue
                     if category not in {"club", "training"}:
                         errors["TMG flights with non-member P2 and invalid category"].append(f)
                 elif not category:

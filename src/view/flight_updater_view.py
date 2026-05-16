@@ -13,6 +13,12 @@ from services.flight_comparison_service import find_unmatched
 from view.flight_table_formatter import FlightTableFormatter
 from view.ga_pdf_printer import GAPdfPrinter
 
+
+try:
+    from config import VERSION
+except ImportError:
+    VERSION = "unknown"
+
 class FlightUpdaterApp:
     def __init__(self, root: tk.Tk, updater_service):
         self.root = root
@@ -23,7 +29,7 @@ class FlightUpdaterApp:
         self.al: list[FlightDisplayRow] = []
 
         self.launch_sort = tk.BooleanVar(value=True)
-        self.grl_only = tk.BooleanVar(value=True)
+        self.include_non_grl_club_departures = tk.BooleanVar(value=False)
         self.print_to_file = tk.BooleanVar(value=False)        
         self.modify_payer = tk.BooleanVar(value=True)
 
@@ -115,8 +121,8 @@ class FlightUpdaterApp:
 
         ttk.Checkbutton(
             ctrl_frame,
-            text="GRL flights only",
-            variable=self.grl_only,
+            text="Also upload non-GRL club departures",
+            variable=self.include_non_grl_club_departures,
         ).pack(side="left", padx=(10, 0))
 
         ttk.Checkbutton(
@@ -198,11 +204,16 @@ class FlightUpdaterApp:
             self.log_message("Sending Gliding.App flights to Aerolog...")
 
             formatter = FlightTableFormatter(
-                grl_only=self.grl_only.get(),
+                grl_only=False,
                 group_by_launch_type=False,
             )
 
-            ga_flights_to_send = formatter.filter_grl_flights(self.ga)
+            ga_flights_to_send = formatter.filter_aerolog_upload_flights(
+                self.ga,
+                include_non_grl_club_departures=(
+                    self.include_non_grl_club_departures.get()
+                ),
+            )
 
             result = self.service.send_glidingapp_flights_to_aerolog(
                 ga_flights_to_send,
@@ -216,20 +227,23 @@ class FlightUpdaterApp:
                 f"records={result.get('record_count')}"
             )
 
-            payload = result.get("payload")
-            if payload is not None:
-                self.log_message("")
-                self.log_message("Aerolog payload:")
+            if result.get("status") == "dry_run":
+                self._print_aerolog_upload_summary(ga_flights_to_send)
 
-                payload_json = json.dumps(
-                    payload,
-                    indent=2,
-                    ensure_ascii=False,
-                    default=str,
-                )
+                payload = result.get("payload")
+                if payload is not None:
+                    self.log_message("")
+                    self.log_message("Aerolog payload JSON:")
 
-                for line in payload_json.splitlines():
-                    self.log_message(line)
+                    payload_json = json.dumps(
+                        payload,
+                        indent=2,
+                        ensure_ascii=False,
+                        default=str,
+                    )
+
+                    for line in payload_json.splitlines():
+                        self.log_message(line)
 
         except Exception:
             self.log_message("ERROR sending to Aerolog:")
@@ -237,6 +251,42 @@ class FlightUpdaterApp:
 
         finally:
             self.log_widget.after(0, lambda: self._set_buttons_enabled(True))
+
+    def _print_aerolog_upload_summary(
+        self,
+        flights: list[FlightDisplayRow],
+    ) -> None:
+        self.log_message("")
+        self.log_message("Flights that would be sent to Aerolog:")
+
+        header = (
+            f"{'Sync Key':>8} "
+            f"{'CS':8}"
+            f"{'PIC':36}"
+            f"{'Takeoff':8}"
+            f"{'From':10}"
+            f"{'To':10}"
+        )
+        self.log_message(header)
+
+        for idx, flight in enumerate(flights, start=1):
+            tag = "even" if idx % 2 == 0 else "odd"
+
+            pic = (
+                f"{flight.pic_account or ''} "
+                f"{flight.pic_name or ''}"
+            ).strip()
+
+            line = (
+                f"{str(flight.sync_key or ''):>8} "
+                f"{flight.callsign or '':8}"
+                f"{pic[:36]:36}"
+                f"{flight.takeoff_str():8}"
+                f"{flight.airfield_takeoff or '':10}"
+                f"{flight.airfield_landing or '':10}"
+            )
+
+            self.log_message(line, tag)
 
     def count_types_of_flight(
         self,
@@ -263,29 +313,7 @@ class FlightUpdaterApp:
 
 
     def _get_version(self) -> str:
-        candidates: list[Path] = []
-
-        # PyInstaller one-file bundled data location
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            candidates.append(Path(sys._MEIPASS) / "version.txt")
-
-        # PyInstaller one-folder / exe directory fallback
-        if getattr(sys, "frozen", False):
-            candidates.append(Path(sys.executable).resolve().parent / "version.txt")
-
-        # Source mode: FlightUpdater/version.txt
-        candidates.append(Path(__file__).resolve().parents[2] / "version.txt")
-
-        for version_path in candidates:
-            try:
-                if version_path.exists():
-                    version = version_path.read_text(encoding="ascii").strip()
-                    if version:
-                        return version
-            except Exception:
-                pass
-
-        return "unknown"
+        return VERSION
 
 
     def _get_aerolog_mode(self) -> str:
@@ -438,7 +466,7 @@ class FlightUpdaterApp:
         group_by_launch_type: bool = False,
     ) -> None:
         formatter = FlightTableFormatter(
-            grl_only=self.grl_only.get(),
+            grl_only=False,
             group_by_launch_type=group_by_launch_type,
         )
 
@@ -453,7 +481,7 @@ class FlightUpdaterApp:
 
     def print_ga_notes(self, flights_unsorted: list[FlightDisplayRow]) -> None:
         formatter = FlightTableFormatter(
-            grl_only=self.grl_only.get(),
+            grl_only=False,
             group_by_launch_type=False,
         )
 
@@ -468,7 +496,7 @@ class FlightUpdaterApp:
         try:
             printer = GAPdfPrinter(
                 save_to_file=self.print_to_file.get(),
-                grl_only=self.grl_only.get(),
+                grl_only=False,
                 group_by_launch_type=self.launch_sort.get(),
             )
 

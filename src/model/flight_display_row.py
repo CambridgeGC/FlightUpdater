@@ -29,6 +29,8 @@ class FlightDisplayRow:
     notes: str = ""
     airfield_takeoff: str = ""
     airfield_landing: str = ""
+    aircraft_category: str = ""
+    is_club_aircraft: bool = False
 
     def takeoff_str(self) -> str:
         return self.takeoff_time.strftime("%H:%M") if self.takeoff_time else ""

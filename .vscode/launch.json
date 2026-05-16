@@ -1,8 +1,17 @@
 {
-  "name": "FlightUpdater",
-  "type": "debugpy",
-  "request": "launch",
-  "program": "${workspaceFolder:FlightUpdater}/src/main.py",
-  "console": "integratedTerminal",
-  "cwd": "${workspaceFolder:FlightUpdater}"
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run FlightUpdater",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/main.py",
+      "python": "C:\\Users\\paul\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\flightupdater-UFJ2zmSP-py3.13\\Scripts\\python.exe",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src;${workspaceFolder}/../glidinglib/src"
+      },
+      "console": "integratedTerminal"
+    }
+  ]
 }

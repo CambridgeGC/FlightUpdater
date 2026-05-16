@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "flightupdater"
-version = "2.1.0"
+version = "2.1.1"
 description = "Flight updater GUI"
 authors = ["Paul Ruskin"]
 packages = [{ include = "src" }]
@@ -11,6 +11,7 @@ glidinglib = {path = "../glidinglib", develop = true}
 requests = "^2.33.1"
 tkcalendar = "^1.6.1"
 reportlab = "^4.4.0"
+tzdata = "^2026.2"
 
 [tool.poetry.group.dev.dependencies]
 pyinstaller = "^6.15.0"

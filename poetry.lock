@@ -143,7 +143,7 @@ files = [
 
 [[package]]
 name = "glidinglib"
-version = "0.1.0"
+version = "1.1.3"
 description = ""
 optional = false
 python-versions = "^3.13"
@@ -518,4 +518,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<3.15"
-content-hash = "444b7ab09ebe963b09121aab7abfaa58a85f44122e40a4c728f85f462c536590"
+content-hash = "7c0eb40284063372b86e0419466bc181abca050ad298ddea82f121942f57fff6"

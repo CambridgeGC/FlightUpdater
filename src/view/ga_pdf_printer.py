@@ -68,29 +68,19 @@ class GAPdfPrinter:
             Spacer(1, 6),
         ]
 
-        flights = self.formatter.filter_grl_flights(flights_unsorted)
-        flights = self.formatter.sort_flights_for_display(
-            flights,
+        sections = self.formatter.build_sections(
+            flights_unsorted,
+            "All Flights",
             group_by_launch_type=self.group_by_launch_type,
         )
 
-        if self.group_by_launch_type:
-            for group in FlightTableFormatter.GROUPS:
-                if group == "other":
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower()
-                        not in FlightTableFormatter.GROUPS[:-1]
-                    ]
-                else:
-                    subset = [
-                        f for f in flights
-                        if (f.launch_method or "").lower() == group
-                    ]
-
-                self._add_pdf_table(story, styles, f"{group.upper()} Flights", subset)
-        else:
-            self._add_pdf_table(story, styles, "All Flights", flights)
+        for section_title, section_flights in sections:
+            self._add_pdf_table(
+                story,
+                styles,
+                section_title,
+                section_flights,
+            )
 
         doc.build(story)
 

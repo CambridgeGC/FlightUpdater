@@ -1,0 +1,14 @@
+{
+    "python.analysis.extraPaths": [
+        "./src",
+        "../glidinglib/src"
+    ],
+    "python.defaultInterpreterPath": "C:\\Users\\paul\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\flightupdater-b18fa_GS-py3.13\\Scripts\\python.exe",
+    "python-envs.pythonProjects": [
+        {
+            "path": ".",
+            "envManager": "ms-python.python:system",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
+}
