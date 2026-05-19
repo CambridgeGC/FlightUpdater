@@ -27,10 +27,12 @@ class GAPdfPrinter:
         save_to_file: bool = False,
         grl_only: bool = True,
         group_by_launch_type: bool = True,
+        include_non_grl_non_club: bool = False,
     ):
         self.save_to_file = save_to_file
         self.grl_only = grl_only
         self.group_by_launch_type = group_by_launch_type
+        self.include_non_grl_non_club = include_non_grl_non_club
 
         self.formatter = FlightTableFormatter(
             grl_only=grl_only,
@@ -72,6 +74,7 @@ class GAPdfPrinter:
             flights_unsorted,
             "All Flights",
             group_by_launch_type=self.group_by_launch_type,
+            include_non_grl_non_club=self.include_non_grl_non_club,
         )
 
         for section_title, section_flights in sections:
@@ -119,10 +122,13 @@ class GAPdfPrinter:
             launch = (flight.launch_method or "").lower()
             height_str = str(flight.height_ft or "") if launch == "aerotow" else ""
 
-            tow_pilot = (
-                f"{flight.tow_pilot_account or ''} "
-                f"{flight.tow_pilot_name or ''}"
-            ).strip()
+            tow_pilot = self._truncate(
+                (
+                    f"{flight.tow_pilot_account or ''} "
+                    f"{flight.tow_pilot_name or ''}"
+                ).strip(),
+                18,
+            )
 
             data.append([
                 idx,
@@ -200,3 +206,15 @@ class GAPdfPrinter:
 
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return downloads / f"GlidingApp_{stamp}.pdf"
+
+    @staticmethod
+    def _truncate(value: object, max_len: int) -> str:
+        text = str(value or "").strip()
+
+        if len(text) <= max_len:
+            return text
+
+        if max_len <= 1:
+            return text[:max_len]
+
+        return text[: max_len - 1] + "…"

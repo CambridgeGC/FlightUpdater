@@ -30,6 +30,7 @@ class FlightUpdaterApp:
 
         self.launch_sort = tk.BooleanVar(value=True)
         self.include_non_grl_club_departures = tk.BooleanVar(value=False)
+        self.list_non_club_non_grl_departures = tk.BooleanVar(value=False)
         self.print_to_file = tk.BooleanVar(value=False)        
         self.modify_payer = tk.BooleanVar(value=True)
 
@@ -117,6 +118,12 @@ class FlightUpdaterApp:
             ctrl_frame,
             text="Sort by Launch Type",
             variable=self.launch_sort,
+        ).pack(side="left", padx=(10, 0))
+
+        ttk.Checkbutton(
+            ctrl_frame,
+            text="List non-club non-GRL departures",
+            variable=self.list_non_club_non_grl_departures,
         ).pack(side="left", padx=(10, 0))
 
         ttk.Checkbutton(
@@ -484,6 +491,9 @@ class FlightUpdaterApp:
             notes_only=notes_only,
             group_by_launch_type=group_by_launch_type,
             include_non_grl_sections=include_non_grl_sections,
+            include_non_grl_non_club=(
+                self.list_non_club_non_grl_departures.get()
+            ),
         ):
             if error_style:
                 if tag == "even":
@@ -494,7 +504,6 @@ class FlightUpdaterApp:
                     tag = "error"
 
             self.log_message(line, tag)
-
 
     def print_ga_notes(self, flights_unsorted: list[FlightDisplayRow]) -> None:
         formatter = FlightTableFormatter(
@@ -515,6 +524,9 @@ class FlightUpdaterApp:
                 save_to_file=self.print_to_file.get(),
                 grl_only=False,
                 group_by_launch_type=self.launch_sort.get(),
+                include_non_grl_non_club=(
+                    self.list_non_club_non_grl_departures.get()
+                ),
             )
 
             output_path = printer.print_ga(

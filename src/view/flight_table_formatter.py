@@ -73,16 +73,19 @@ class FlightTableFormatter:
         title: str,
         group_by_launch_type: bool | None = None,
         include_non_grl_sections: bool = True,
+        include_non_grl_non_club: bool = False,
     ) -> list[tuple[str, list[FlightDisplayRow]]]:
         """
         Build display/PDF sections.
 
-        Display and print always include all flights supplied.
+        Display and print always include all normal flights.
 
         For GA flights:
-        - flights departing away from GRL go into their own section
+        - flights departing away from GRL in club aircraft get their own section
+        - flights departing away from GRL in non-club aircraft are only listed
+        if include_non_grl_non_club is True
         - if launch grouping is enabled, aerotows are split by tug when
-          there is more than one tow aircraft
+        there is more than one tow aircraft
         """
         if group_by_launch_type is None:
             group_by_launch_type = self.group_by_launch_type
@@ -134,7 +137,7 @@ class FlightTableFormatter:
                     ),
                 ))
 
-            if away_from_grl_non_club:
+            if include_non_grl_non_club and away_from_grl_non_club:
                 sections.append((
                     "Flights departing away from GRL - non-club aircraft",
                     self.sort_flights_for_display(
@@ -144,6 +147,7 @@ class FlightTableFormatter:
                 ))
 
         return sections
+
 
     def _build_launch_sections(
         self,
@@ -230,12 +234,14 @@ class FlightTableFormatter:
         notes_only: bool = False,
         group_by_launch_type: bool | None = None,
         include_non_grl_sections: bool = True,
+        include_non_grl_non_club: bool = False,
     ) -> list[LogLine]:
         sections = self.build_sections(
             flights_unsorted,
             title,
             group_by_launch_type=group_by_launch_type,
             include_non_grl_sections=include_non_grl_sections,
+            include_non_grl_non_club=include_non_grl_non_club,
         )
 
         lines: list[LogLine] = []
