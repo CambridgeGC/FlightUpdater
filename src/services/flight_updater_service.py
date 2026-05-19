@@ -40,6 +40,7 @@ class FlightUpdaterService:
                 tz=ktrax_config.get("tz"),
             )
         )
+        self.ga_base_combination_flights: list[CombinationFlight] = []
         self.ga_combination_flights: list[CombinationFlight] = []
 
     def get_glidingapp_flights(
@@ -221,6 +222,7 @@ class FlightUpdaterService:
         self,
         flights: list[FlightDisplayRow],
         modify_payer: bool = True,
+        dry_run: bool = False,
     ) -> dict:
         if not self.ga_base_combination_flights:
             return {
@@ -256,5 +258,5 @@ class FlightUpdaterService:
         return self.aerolog_service.send_combination_flight_log_to_aerolog(
             combination_flights_to_send,
             data_source="config",
-            dry_run=False,
+            dry_run=dry_run,
         )

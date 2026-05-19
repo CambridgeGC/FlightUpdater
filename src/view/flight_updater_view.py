@@ -31,7 +31,9 @@ class FlightUpdaterApp:
         self.launch_sort = tk.BooleanVar(value=True)
         self.include_non_grl_club_departures = tk.BooleanVar(value=False)
         self.list_non_club_non_grl_departures = tk.BooleanVar(value=False)
-        self.print_to_file = tk.BooleanVar(value=False)        
+        self.dry_run_only = tk.BooleanVar(value=True)
+        self.show_json = tk.BooleanVar(value=True)
+        self.print_to_file = tk.BooleanVar(value=False)
         self.modify_payer = tk.BooleanVar(value=True)
 
         version = self._get_version()
@@ -138,6 +140,18 @@ class FlightUpdaterApp:
             variable=self.modify_payer,
         ).pack(side="left", padx=(10, 0))
 
+        ttk.Checkbutton(
+            ctrl_frame,
+            text="Dryrun only",
+            variable=self.dry_run_only,
+        ).pack(side="left", padx=(10, 0))
+
+        ttk.Checkbutton(
+            ctrl_frame,
+            text="Show JSON",
+            variable=self.show_json,
+        ).pack(side="left", padx=(10, 0))
+
         self.log_widget = scrolledtext.ScrolledText(root, state="disabled")
         self.log_widget.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -228,10 +242,14 @@ class FlightUpdaterApp:
                 ),
             )
 
+            # Always show the simple list, for both dry run and live send.
+            self._print_aerolog_upload_summary(ga_flights_to_send)
+
             result = self.service.send_glidingapp_flights_to_aerolog(
                 ga_flights_to_send,
                 modify_payer=self.modify_payer.get(),
-)
+                dry_run=self.dry_run_only.get(),
+            )
 
             self.log_message(
                 f"Aerolog send result: "
@@ -240,9 +258,8 @@ class FlightUpdaterApp:
                 f"records={result.get('record_count')}"
             )
 
-            if result.get("status") == "dry_run":
-                self._print_aerolog_upload_summary(ga_flights_to_send)
-
+            # Only print JSON when it is a dry run and Show JSON is ticked.
+            if result.get("status") == "dry_run" and self.show_json.get():
                 payload = result.get("payload")
                 if payload is not None:
                     self.log_message("")
@@ -275,6 +292,7 @@ class FlightUpdaterApp:
         header = (
             f"{'Sync Key':>8} "
             f"{'CS':8}"
+            f"{'Registration':14}"
             f"{'PIC':36}"
             f"{'Takeoff':8}"
             f"{'From':10}"
@@ -293,6 +311,7 @@ class FlightUpdaterApp:
             line = (
                 f"{str(flight.sync_key or ''):>8} "
                 f"{flight.callsign or '':8}"
+                f"{flight.registration or '':14}"
                 f"{pic[:36]:36}"
                 f"{flight.takeoff_str():8}"
                 f"{flight.airfield_takeoff or '':10}"
