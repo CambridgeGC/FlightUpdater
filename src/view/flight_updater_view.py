@@ -2,7 +2,7 @@ import sys
 import json
 import threading
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 import traceback
 from pathlib import Path
 from tkcalendar import DateEntry
@@ -71,6 +71,20 @@ class FlightUpdaterApp:
         )
         self.send_aerolog_btn.grid(row=0, column=4, sticky="w", padx=(5, 15))
 
+        self.load_aircraft_btn = ttk.Button(
+            top_frame,
+            text="Load Aerolog Aircraft",
+            command=self.load_aerolog_aircraft_file,
+        )
+        self.load_aircraft_btn.grid(row=0, column=5, sticky="w", padx=(5, 15))
+
+        self.compare_aircraft_btn = ttk.Button(
+            top_frame,
+            text="Compare Aircraft",
+            command=self.compare_aircraft,
+        )
+        self.compare_aircraft_btn.grid(row=0, column=6, sticky="w", padx=(5, 15))
+
         ctrl_frame = ttk.Frame(root)
         ctrl_frame.pack(padx=10, pady=(10, 0), anchor="w")
 
@@ -94,6 +108,20 @@ class FlightUpdaterApp:
             command=self.list_aerolog,
         )
         self.list_aerolog_btn.pack(side="left", padx=(0, 10))
+
+        self.list_ga_aircraft_btn = ttk.Button(
+            ctrl_frame,
+            text="List GA Aircraft",
+            command=self.list_ga_aircraft,
+        )
+        self.list_ga_aircraft_btn.pack(side="left", padx=(0, 10))
+
+        self.list_al_aircraft_btn = ttk.Button(
+            ctrl_frame,
+            text="List AL Aircraft",
+            command=self.list_al_aircraft,
+        )
+        self.list_al_aircraft_btn.pack(side="left", padx=(0, 10))
 
         self.clear_btn = ttk.Button(
             ctrl_frame,
@@ -161,6 +189,27 @@ class FlightUpdaterApp:
         self.log_widget.tag_configure("error_even", foreground="red", background="white")
         self.log_widget.tag_configure("error_odd", foreground="red", background="#f0f0f0")
 
+        threading.Thread(
+            target=self._initialise_ogn_ddb_worker,
+            daemon=True,
+        ).start()
+
+    def _initialise_ogn_ddb_worker(self) -> None:
+        try:
+            result = self.service.initialise_ogn_ddb()
+
+            self.log_message(
+                f"Loaded OGN DDB: "
+                f"{result.get('record_count', 0)} records"
+            )
+            self.log_message(
+                f"OGN cache: {result.get('cache_path', '')}"
+            )
+
+        except Exception:
+            self.log_message("WARNING: Could not load OGN DDB:")
+            self.log_message(traceback.format_exc())
+
     def log_message(self, msg: str, tag: str | None = None) -> None:
         self.log_widget.configure(state="normal")
         self.log_widget.insert(tk.END, msg + "\n", tag if tag else None)
@@ -188,8 +237,11 @@ class FlightUpdaterApp:
         self.send_aerolog_btn.config(state=state)
         self.print_btn.config(state=state)
         self.test_errors_btn.config(state=state)
-
-
+        self.load_aircraft_btn.config(state=state)
+        self.compare_aircraft_btn.config(state=state)
+        self.list_ga_aircraft_btn.config(state=state)
+        self.list_al_aircraft_btn.config(state=state)
+        
     def list_ga(self) -> None:
         self.clear()
         self.print_flights(
@@ -225,6 +277,105 @@ class FlightUpdaterApp:
         self._set_buttons_enabled(False)
         threading.Thread(target=self._send_ga_to_aerolog_worker, daemon=True).start()
 
+    def load_aerolog_aircraft_file(self) -> None:
+        file_path = filedialog.askopenfilename(
+            title="Select Aerolog aircraft Excel file",
+            filetypes=[
+                ("Excel files", "*.xlsx *.xlsm *.xltx *.xltm"),
+                ("All files", "*.*"),
+            ],
+        )
+
+        if not file_path:
+            return
+
+        try:
+            self.log_message("")
+            self.log_message(f"Loading Aerolog aircraft file: {file_path}")
+
+            result = self.service.load_aerolog_aircraft_file(file_path)
+
+            self.log_message(
+                f"Loaded {result['record_count']} Aerolog aircraft records."
+            )
+            self.log_message(f"JSON cache: {result['cache_path']}")
+            self.log_message(f"Excel cache: {result['excel_cache_path']}")
+
+        except Exception:
+            self.log_message("ERROR loading Aerolog aircraft file:")
+            self.log_message(traceback.format_exc())
+            messagebox.showerror(
+                "Load Aerolog Aircraft",
+                "Failed to load Aerolog aircraft file. See log for details.",
+            )
+
+    def list_ga_aircraft(self) -> None:
+        try:
+            self.clear()
+            lines = self.service.list_glidingapp_aircraft_report()
+
+            for line in lines:
+                self.log_message(line)
+
+        except Exception:
+            self.log_message("ERROR listing Gliding.App aircraft:")
+            self.log_message(traceback.format_exc())
+            messagebox.showerror(
+                "List GA Aircraft",
+                "Failed to list Gliding.App aircraft. See log for details.",
+            )
+
+
+    def list_al_aircraft(self) -> None:
+        try:
+            self.clear()
+            lines = self.service.list_aerolog_aircraft_report()
+
+            for line in lines:
+                self.log_message(line)
+
+        except FileNotFoundError as exc:
+            self.log_message("ERROR listing Aerolog aircraft:")
+            self.log_message(str(exc))
+            messagebox.showerror(
+                "List AL Aircraft",
+                "No Aerolog aircraft cache found. Load an Aerolog aircraft file first.",
+            )
+
+        except Exception:
+            self.log_message("ERROR listing Aerolog aircraft:")
+            self.log_message(traceback.format_exc())
+            messagebox.showerror(
+                "List AL Aircraft",
+                "Failed to list Aerolog aircraft. See log for details.",
+            )
+    def compare_aircraft(self) -> None:
+        try:
+            self.clear()
+            self.log_message("Loading Gliding.App aircraft and comparing with Aerolog cache...")
+            self.log_message("")
+
+            lines = self.service.compare_aircraft()
+
+            for line in lines:
+                self.log_message(line)
+
+        except FileNotFoundError as exc:
+            self.log_message("ERROR comparing aircraft:")
+            self.log_message(str(exc))
+            messagebox.showerror(
+                "Compare Aircraft",
+                "No Aerolog aircraft cache found. Load an Aerolog aircraft file first.",
+            )
+
+        except Exception:
+            self.log_message("ERROR comparing aircraft:")
+            self.log_message(traceback.format_exc())
+            messagebox.showerror(
+                "Compare Aircraft",
+                "Failed to compare aircraft. See log for details.",
+            )
+
     def _send_ga_to_aerolog_worker(self) -> None:
         try:
             self.log_message("")
@@ -235,12 +386,8 @@ class FlightUpdaterApp:
                 group_by_launch_type=False,
             )
 
-            ga_flights_to_send = formatter.filter_aerolog_upload_flights(
-                self.ga,
-                include_non_grl_club_departures=(
-                    self.include_non_grl_club_departures.get()
-                ),
-            )
+            ga_flights_to_send = self._get_ga_flights_planned_for_aerolog_upload()
+
 
             # Always show the simple list, for both dry run and live send.
             self._print_aerolog_upload_summary(ga_flights_to_send)
@@ -577,10 +724,20 @@ class FlightUpdaterApp:
     def print_test_for_errors(self) -> None:
         error_groups = self.service.test_for_errors(self.ga)
 
+        ga_flights_planned_for_upload = (
+            self._get_ga_flights_planned_for_aerolog_upload()
+        )
+
+        aircraft_error_lines = (
+            self.service.aerolog_upload_aircraft_error_report(
+                ga_flights_planned_for_upload
+            )
+        )
+
         self.log_message("")
         self.log_message("Possible Gliding.App errors", "error")
 
-        if not error_groups:
+        if not error_groups and not aircraft_error_lines:
             self.log_message("No errors found.")
             return
 
@@ -592,3 +749,24 @@ class FlightUpdaterApp:
                 include_non_grl_sections=False,
                 error_style=True,
             )
+
+        if aircraft_error_lines:
+            self.log_message("")
+
+            for line in aircraft_error_lines:
+                self.log_message(line, "error")
+
+    def _get_ga_flights_planned_for_aerolog_upload(
+        self,
+    ) -> list[FlightDisplayRow]:
+        formatter = FlightTableFormatter(
+            grl_only=False,
+            group_by_launch_type=False,
+        )
+
+        return formatter.filter_aerolog_upload_flights(
+            self.ga,
+            include_non_grl_club_departures=(
+                self.include_non_grl_club_departures.get()
+            ),
+        )

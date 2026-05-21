@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "flightupdater"
-version = "2.1.1"
+version = "2.1.2"
 description = "Flight updater GUI"
 authors = ["Paul Ruskin"]
 packages = [{ include = "src" }]
