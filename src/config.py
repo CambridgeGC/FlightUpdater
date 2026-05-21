@@ -5,7 +5,10 @@ def load_config():
         return json.load(f)
 
 APP_NAME = "FlightUpdater"
-VERSION = "2.1.1"
+VERSION = "2.2.0"
+
+
+
 
 
 

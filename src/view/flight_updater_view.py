@@ -29,10 +29,10 @@ class FlightUpdaterApp:
         self.al: list[FlightDisplayRow] = []
 
         self.launch_sort = tk.BooleanVar(value=True)
-        self.include_non_grl_club_departures = tk.BooleanVar(value=False)
+        self.include_non_grl_club_departures = tk.BooleanVar(value=True)
         self.list_non_club_non_grl_departures = tk.BooleanVar(value=False)
         self.dry_run_only = tk.BooleanVar(value=True)
-        self.show_json = tk.BooleanVar(value=True)
+        self.show_json = tk.BooleanVar(value=False)
         self.print_to_file = tk.BooleanVar(value=False)
         self.modify_payer = tk.BooleanVar(value=True)
 
@@ -42,143 +42,252 @@ class FlightUpdaterApp:
         root.title(f"Flight Updater - {version} - Aerolog: {aerolog_mode}")
         root.geometry("1900x1000")
 
-        top_frame = ttk.Frame(root)
-        top_frame.pack(padx=10, pady=5, anchor="w")
+        header_frame = ttk.Frame(root)
+        header_frame.pack(fill="x", padx=10, pady=5, anchor="w")
 
-        ttk.Label(top_frame, text="Date:").grid(row=0, column=0, sticky="w")
+        # ============================================================
+        # Block 1: Fetch / options
+        # ============================================================
+        fetch_frame = ttk.LabelFrame(header_frame, text="Fetch and options")
+        fetch_frame.grid(row=0, column=0, padx=(0, 10), pady=5, sticky="nw")
 
-        self.date_entry = DateEntry(top_frame, date_pattern="yyyy-MM-dd")
-        self.date_entry.grid(row=0, column=1, padx=(5, 15))
+        ttk.Label(fetch_frame, text="Date:").grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=5,
+            pady=5,
+        )
+
+        self.date_entry = DateEntry(fetch_frame, date_pattern="yyyy-MM-dd")
+        self.date_entry.grid(
+            row=0,
+            column=1,
+            sticky="w",
+            padx=5,
+            pady=5,
+        )
 
         self.compare_btn = ttk.Button(
-            top_frame,
+            fetch_frame,
             text="Fetch and Compare",
             command=self.start,
         )
-        self.compare_btn.grid(row=0, column=2, sticky="w", padx=(5, 15))
-
-        self.test_errors_btn = ttk.Button(
-            top_frame,
-            text="Test for errors",
-            command=self.test_for_errors,
+        self.compare_btn.grid(
+            row=0,
+            column=2,
+            sticky="w",
+            padx=5,
+            pady=5,
         )
-        self.test_errors_btn.grid(row=0, column=3, sticky="w", padx=(5, 15))
 
-        self.send_aerolog_btn = ttk.Button(
-            top_frame,
-            text="Send GA to Aerolog",
-            command=self.send_ga_to_aerolog,
+        ttk.Checkbutton(
+            fetch_frame,
+            text="Sort by Launch Type",
+            variable=self.launch_sort,
+        ).grid(
+            row=1,
+            column=0,
+            columnspan=3,
+            sticky="w",
+            padx=5,
+            pady=2,
         )
-        self.send_aerolog_btn.grid(row=0, column=4, sticky="w", padx=(5, 15))
 
-        self.load_aircraft_btn = ttk.Button(
-            top_frame,
-            text="Load Aerolog Aircraft",
-            command=self.load_aerolog_aircraft_file,
+        ttk.Checkbutton(
+            fetch_frame,
+            text="List non-club non-GRL departures",
+            variable=self.list_non_club_non_grl_departures,
+        ).grid(
+            row=2,
+            column=0,
+            columnspan=3,
+            sticky="w",
+            padx=5,
+            pady=2,
         )
-        self.load_aircraft_btn.grid(row=0, column=5, sticky="w", padx=(5, 15))
 
-        self.compare_aircraft_btn = ttk.Button(
-            top_frame,
-            text="Compare Aircraft",
-            command=self.compare_aircraft,
+
+        ttk.Checkbutton(
+            fetch_frame,
+            text="Modify Payer",
+            variable=self.modify_payer,
+        ).grid(
+            row=4,
+            column=0,
+            columnspan=3,
+            sticky="w",
+            padx=5,
+            pady=2,
         )
-        self.compare_aircraft_btn.grid(row=0, column=6, sticky="w", padx=(5, 15))
 
-        ctrl_frame = ttk.Frame(root)
-        ctrl_frame.pack(padx=10, pady=(10, 0), anchor="w")
 
-        self.list_ktrax_btn = ttk.Button(
-            ctrl_frame,
-            text="List Ktrax",
-            command=self.list_ktrax,
-        )
-        self.list_ktrax_btn.pack(side="left", padx=(0, 10))
+        # ============================================================
+        # Block 2: Lists / print
+        # ============================================================
+        list_frame = ttk.LabelFrame(header_frame, text="Lists and print")
+        list_frame.grid(row=0, column=1, padx=(0, 10), pady=5, sticky="nw")
 
         self.list_ga_btn = ttk.Button(
-            ctrl_frame,
+            list_frame,
             text="List GA",
             command=self.list_ga,
         )
-        self.list_ga_btn.pack(side="left", padx=(0, 10))
+        self.list_ga_btn.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        self.list_ktrax_btn = ttk.Button(
+            list_frame,
+            text="List Ktrax",
+            command=self.list_ktrax,
+        )
+        self.list_ktrax_btn.grid(row=0, column=1, sticky="w", padx=5, pady=5)
 
         self.list_aerolog_btn = ttk.Button(
-            ctrl_frame,
+            list_frame,
             text="List Aerolog",
             command=self.list_aerolog,
         )
-        self.list_aerolog_btn.pack(side="left", padx=(0, 10))
+        self.list_aerolog_btn.grid(row=0, column=2, sticky="w", padx=5, pady=5)
 
-        self.list_ga_aircraft_btn = ttk.Button(
-            ctrl_frame,
-            text="List GA Aircraft",
-            command=self.list_ga_aircraft,
+        self.test_errors_btn = ttk.Button(
+            list_frame,
+            text="Test for errors",
+            command=self.test_for_errors,
         )
-        self.list_ga_aircraft_btn.pack(side="left", padx=(0, 10))
-
-        self.list_al_aircraft_btn = ttk.Button(
-            ctrl_frame,
-            text="List AL Aircraft",
-            command=self.list_al_aircraft,
-        )
-        self.list_al_aircraft_btn.pack(side="left", padx=(0, 10))
+        self.test_errors_btn.grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
         self.clear_btn = ttk.Button(
-            ctrl_frame,
+            list_frame,
             text="Clear",
             command=self.clear,
         )
-        self.clear_btn.pack(side="left", padx=(0, 10))
+        self.clear_btn.grid(row=1, column=1, sticky="w", padx=5, pady=5)
 
         self.print_btn = ttk.Button(
-            ctrl_frame,
+            list_frame,
             text="Print GA",
             command=self.print_ga,
         )
-        self.print_btn.pack(side="left", padx=(5, 15))
+        self.print_btn.grid(row=1, column=2, sticky="w", padx=5, pady=5)
 
         ttk.Checkbutton(
-            ctrl_frame,
+            list_frame,
             text="Print GA to file",
             variable=self.print_to_file,
-        ).pack(side="left", padx=(10, 0))        
+        ).grid(
+            row=2,
+            column=0,
+            columnspan=3,
+            sticky="w",
+            padx=5,
+            pady=2,
+        )
 
+
+        # ============================================================
+        # Block 3: Aerolog upload
+        # ============================================================
+        upload_frame = ttk.LabelFrame(header_frame, text="Aerolog upload")
+        upload_frame.grid(row=0, column=2, padx=(0, 10), pady=5, sticky="nw")
+
+        self.send_aerolog_btn = ttk.Button(
+            upload_frame,
+            text="Send GA to Aerolog",
+            command=self.send_ga_to_aerolog,
+        )
+        self.send_aerolog_btn.grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            padx=5,
+            pady=5,
+        )
 
         ttk.Checkbutton(
-            ctrl_frame,
-            text="Sort by Launch Type",
-            variable=self.launch_sort,
-        ).pack(side="left", padx=(10, 0))
-
-        ttk.Checkbutton(
-            ctrl_frame,
-            text="List non-club non-GRL departures",
-            variable=self.list_non_club_non_grl_departures,
-        ).pack(side="left", padx=(10, 0))
-
-        ttk.Checkbutton(
-            ctrl_frame,
+            upload_frame,
             text="Also upload non-GRL club departures",
             variable=self.include_non_grl_club_departures,
-        ).pack(side="left", padx=(10, 0))
+        ).grid(
+            row=1,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            padx=5,
+            pady=2,
+        )
 
         ttk.Checkbutton(
-            ctrl_frame,
-            text="Modify Payer",
-            variable=self.modify_payer,
-        ).pack(side="left", padx=(10, 0))
-
-        ttk.Checkbutton(
-            ctrl_frame,
+            upload_frame,
             text="Dryrun only",
             variable=self.dry_run_only,
-        ).pack(side="left", padx=(10, 0))
+        ).grid(
+            row=2,
+            column=0,
+            sticky="w",
+            padx=5,
+            pady=2,
+        )
 
         ttk.Checkbutton(
-            ctrl_frame,
+            upload_frame,
             text="Show JSON",
             variable=self.show_json,
-        ).pack(side="left", padx=(10, 0))
+        ).grid(
+            row=3,
+            column=0,
+            sticky="w",
+            padx=5,
+            pady=2,
+        )
+
+
+        # ============================================================
+        # Block 4: Aircraft
+        # ============================================================
+        aircraft_frame = ttk.LabelFrame(header_frame, text="Aircraft")
+        aircraft_frame.grid(row=0, column=3, padx=(0, 10), pady=5, sticky="nw")
+
+        self.load_aircraft_btn = ttk.Button(
+            aircraft_frame,
+            text="Load Aerolog Aircraft",
+            command=self.load_aerolog_aircraft_file,
+        )
+        self.load_aircraft_btn.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        self.compare_aircraft_btn = ttk.Button(
+            aircraft_frame,
+            text="Compare Aircraft",
+            command=self.compare_aircraft,
+        )
+        self.compare_aircraft_btn.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+
+        self.list_ga_aircraft_btn = ttk.Button(
+            aircraft_frame,
+            text="List GA Aircraft",
+            command=self.list_ga_aircraft,
+        )
+        self.list_ga_aircraft_btn.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+
+        self.list_al_aircraft_btn = ttk.Button(
+            aircraft_frame,
+            text="List AL Aircraft",
+            command=self.list_al_aircraft,
+        )
+        self.list_al_aircraft_btn.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+
+        # ============================================================
+        # Block 5: Instructions
+        # ============================================================
+        instructions_frame = ttk.LabelFrame(header_frame, text="Instructions")
+        instructions_frame.grid(row=0, column=4, padx=(0, 10), pady=5, sticky="nw")
+
+        self.instructions_btn = ttk.Button(
+            instructions_frame,
+            text="Instructions",
+            command=self.show_instructions,
+        )
+        self.instructions_btn.grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         self.log_widget = scrolledtext.ScrolledText(root, state="disabled")
         self.log_widget.pack(fill="both", expand=True, padx=10, pady=10)
@@ -237,6 +346,8 @@ class FlightUpdaterApp:
         self.send_aerolog_btn.config(state=state)
         self.print_btn.config(state=state)
         self.test_errors_btn.config(state=state)
+        self.instructions_btn.config(state=state)
+
         self.load_aircraft_btn.config(state=state)
         self.compare_aircraft_btn.config(state=state)
         self.list_ga_aircraft_btn.config(state=state)
@@ -428,6 +539,202 @@ class FlightUpdaterApp:
 
         finally:
             self.log_widget.after(0, lambda: self._set_buttons_enabled(True))
+
+    def _instructions_file_path(self) -> Path:
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS) / "INSTRUCTIONS.md"
+
+        return Path(__file__).resolve().parents[2] / "INSTRUCTIONS.md"
+
+    def show_instructions(self) -> None:
+        instructions_path = self._instructions_file_path()
+
+        try:
+            lines = instructions_path.read_text(encoding="utf-8").splitlines()
+        except Exception as exc:
+            messagebox.showerror(
+                "Instructions",
+                f"Could not open instructions file:\n"
+                f"{instructions_path}\n\n{exc}",
+            )
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("FlightUpdater Instructions")
+        win.geometry("950x750")
+
+        text = scrolledtext.ScrolledText(
+            win,
+            wrap="word",
+            state="normal",
+        )
+        text.pack(fill="both", expand=True, padx=10, pady=10)
+
+        text.tag_configure(
+            "h1",
+            font=("TkDefaultFont", 18, "bold"),
+            spacing1=10,
+            spacing3=8,
+        )
+        text.tag_configure(
+            "h2",
+            font=("TkDefaultFont", 14, "bold"),
+            spacing1=8,
+            spacing3=6,
+        )
+        text.tag_configure(
+            "h3",
+            font=("TkDefaultFont", 12, "bold"),
+            spacing1=6,
+            spacing3=4,
+        )
+        text.tag_configure(
+            "bullet",
+            lmargin1=25,
+            lmargin2=45,
+            spacing1=2,
+            spacing3=2,
+        )
+        text.tag_configure(
+            "numbered",
+            lmargin1=25,
+            lmargin2=45,
+            spacing1=2,
+            spacing3=2,
+        )
+        text.tag_configure(
+            "code",
+            font=("Courier New", 10),
+            background="#f0f0f0",
+            lmargin1=20,
+            lmargin2=20,
+            spacing1=2,
+            spacing3=2,
+        )
+        text.tag_configure(
+            "normal",
+            font=("TkDefaultFont", 10),
+            spacing1=2,
+            spacing3=2,
+        )
+        text.tag_configure(
+            "bold",
+            font=("TkDefaultFont", 10, "bold"),
+        )
+        text.tag_configure(
+            "inline_code",
+            font=("Courier New", 10),
+            background="#f0f0f0",
+        )
+
+        in_code_block = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            if stripped.startswith("```"):
+                in_code_block = not in_code_block
+                continue
+
+            if in_code_block:
+                text.insert(tk.END, line + "\n", "code")
+
+            elif stripped.startswith("### "):
+                text.insert(tk.END, stripped[4:] + "\n", "h3")
+
+            elif stripped.startswith("## "):
+                text.insert(tk.END, stripped[3:] + "\n", "h2")
+
+            elif stripped.startswith("# "):
+                text.insert(tk.END, stripped[2:] + "\n", "h1")
+
+            elif stripped.startswith("- "):
+                text.insert(tk.END, "• ", "bullet")
+                self._insert_markdown_inline(
+                    text,
+                    stripped[2:],
+                    base_tag="bullet",
+                )
+                text.insert(tk.END, "\n", "bullet")
+
+            elif self._is_numbered_markdown_line(stripped):
+                self._insert_markdown_inline(
+                    text,
+                    stripped,
+                    base_tag="numbered",
+                )
+                text.insert(tk.END, "\n", "numbered")
+
+            else:
+                self._insert_markdown_inline(
+                    text,
+                    line,
+                    base_tag="normal",
+                )
+                text.insert(tk.END, "\n", "normal")
+
+        text.configure(state="disabled")
+
+    def _insert_markdown_inline(
+        self,
+        text_widget: scrolledtext.ScrolledText,
+        line: str,
+        base_tag: str = "normal",
+    ) -> None:
+        """
+        Insert a single Markdown line with simple inline formatting.
+
+        Supports:
+        - **bold**
+        - `inline code`
+        """
+        i = 0
+
+        while i < len(line):
+            if line.startswith("**", i):
+                end = line.find("**", i + 2)
+
+                if end != -1:
+                    bold_text = line[i + 2:end]
+                    text_widget.insert(tk.END, bold_text, (base_tag, "bold"))
+                    i = end + 2
+                    continue
+
+            if line.startswith("`", i):
+                end = line.find("`", i + 1)
+
+                if end != -1:
+                    code_text = line[i + 1:end]
+                    text_widget.insert(tk.END, code_text, (base_tag, "inline_code"))
+                    i = end + 1
+                    continue
+
+            next_bold = line.find("**", i)
+            next_code = line.find("`", i)
+
+            candidates = [
+                pos for pos in (next_bold, next_code)
+                if pos != -1
+            ]
+
+            next_special = min(candidates) if candidates else len(line)
+
+            text_widget.insert(
+                tk.END,
+                line[i:next_special],
+                base_tag,
+            )
+
+            i = next_special
+
+    @staticmethod
+    def _is_numbered_markdown_line(line: str) -> bool:
+        if "." not in line:
+            return False
+
+        number, _rest = line.split(".", 1)
+
+        return number.isdigit()
 
     def _print_aerolog_upload_summary(
         self,
@@ -717,7 +1024,7 @@ class FlightUpdaterApp:
                 "No Gliding.App flights loaded. Fetch flights first.",
             )
             return
-
+        self.clear()
         self.print_test_for_errors()
 
 
