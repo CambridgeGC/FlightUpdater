@@ -91,7 +91,7 @@ if (Test-Path $WorkPath) {
 # Build executable
 Write-Host "Building executable..."
 
-Run-Exit-On-Error "poetry run pyinstaller --clean --onefile --workpath `"$WorkPath`" --name `"FlightUpdater_$Tag`" --paths `"src;..\glidinglib\src`" --hidden-import=tkcalendar `"$MainFile`""
+Run-Exit-On-Error "poetry run pyinstaller --clean --onefile --add-data `"INSTRUCTIONS.md;INSTRUCTIONS.md`" --workpath `"$WorkPath`" --name `"FlightUpdater_$Tag`" --paths `"src;..\glidinglib\src`" --hidden-import=tkcalendar `"$MainFile`""
 
 $ExePath = "dist\FlightUpdater_$Tag.exe"
 
