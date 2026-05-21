@@ -37,10 +37,10 @@ def flights_match(
     f2: FlightDisplayRow,
     tolerance_seconds: int = MAX_TOLERANCE_SECONDS,
 ) -> bool:
-    if _normalise(f1.callsign) != _normalise(f2.callsign):
+    if not _aircraft_matches(f1, f2):
         return False
 
-    if _normalise(f1.tow_callsign) != _normalise(f2.tow_callsign):
+    if not _tow_aircraft_matches(f1, f2):
         return False
 
     if not _times_match(f1.takeoff_time, f2.takeoff_time, tolerance_seconds):
@@ -51,8 +51,60 @@ def flights_match(
 
     return True
 
-    return delta <= tolerance_seconds
+def _aircraft_matches(
+    f1: FlightDisplayRow,
+    f2: FlightDisplayRow,
+) -> bool:
+    f1_keys = _aircraft_keys(f1)
+    f2_keys = _aircraft_keys(f2)
 
+    return bool(f1_keys & f2_keys)
+
+
+def _aircraft_keys(flight: FlightDisplayRow) -> set[str]:
+    keys = {
+        _normalise_aircraft_id(flight.callsign),
+        _normalise_aircraft_id(flight.registration),
+    }
+
+    return {key for key in keys if key}
+
+
+def _tow_aircraft_matches(
+    f1: FlightDisplayRow,
+    f2: FlightDisplayRow,
+) -> bool:
+    f1_keys = _tow_aircraft_keys(f1)
+    f2_keys = _tow_aircraft_keys(f2)
+
+    # If neither flight has a tow aircraft recorded, that is a match.
+    if not f1_keys and not f2_keys:
+        return True
+
+    # If only one side has a tow aircraft recorded, that is not a match.
+    if not f1_keys or not f2_keys:
+        return False
+
+    return bool(f1_keys & f2_keys)
+
+
+def _tow_aircraft_keys(flight: FlightDisplayRow) -> set[str]:
+    keys = {
+        _normalise_aircraft_id(getattr(flight, "tow_callsign", "")),
+        _normalise_aircraft_id(getattr(flight, "tow_registration", "")),
+    }
+
+    return {key for key in keys if key}
+
+
+def _normalise_aircraft_id(value: str | None) -> str:
+    return (
+        (value or "")
+        .strip()
+        .upper()
+        .replace("-", "")
+        .replace(" ", "")
+    )
 
 def find_unmatched(
     source: list[FlightDisplayRow],
